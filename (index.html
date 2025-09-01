@@ -1,0 +1,172 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Monthly Membership - Telegram Group</title>
+  <style>
+    :root{--accent:#b8860b; --bg:#f7f7f9; --card:#ffffff}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:var(--bg); margin:0; padding:24px; color:#111}
+    .container{max-width:980px;margin:0 auto}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+    .logo{width:60px;height:60px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#f0c36d);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+    h1{margin:0;font-size:20px}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 20px rgba(20,20,30,0.06)}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+    th{background:#fafafa;font-weight:600}
+    .badge-paid{background:#e6ffef;color:#0b7a3a;padding:6px 8px;border-radius:999px;font-weight:700}
+    .badge-unpaid{background:#fff3f3;color:#b42a2a;padding:6px 8px;border-radius:999px;font-weight:700}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .btn{background:var(--accent);color:#fff;padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+    .btn.secondary{background:#f3f4f6;color:#111}
+    .small{font-size:13px;padding:6px 8px}
+    input,select{padding:8px;border-radius:8px;border:1px solid #ddd}
+    .right{margin-left:auto}
+    .muted{color:#666;font-size:13px}
+    .note{margin-top:8px;color:#444;font-size:13px}
+    @media (max-width:700px){th,td{font-size:13px;padding:8px}header{flex-direction:column;align-items:flex-start}.logo{width:48px;height:48px}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">MG</div>
+      <div>
+        <h1>Telegram Monthly Membership</h1>
+        <div class="muted">Manage members, payments, and share a public link</div>
+      </div>
+      <div class="right muted">Local & Shareable • Saves in browser</div>
+    </header><div class="card">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <input id="name" placeholder="Member Name" />
+    <input id="id" placeholder="Mobile / Telegram ID" />
+    <input id="join" type="date" />
+    <input id="plan" placeholder="Plan (₹)" value="500" style="width:90px" />
+    <select id="status"><option value="Paid">✅ Paid</option><option value="Not Paid">❌ Not Paid</option></select>
+    <input id="paymentDate" type="date" />
+    <input id="nextDue" type="date" />
+    <button class="btn" id="addBtn">Add / Update</button>
+    <button class="btn secondary small" id="clearBtn">Clear Form</button>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="exportCsv">Export CSV</button>
+    <button class="btn" id="copyLink">Copy Shareable Link</button>
+    <button class="btn secondary" id="loadLink">Load from Link</button>
+    <button class="btn secondary" id="reset">Reset Example</button>
+    <div class="right muted">Tip: share the generated link with others to let them view the table.</div>
+  </div>
+
+  <table id="membersTable" style="margin-top:12px">
+    <thead>
+      <tr><th>Sr. No.</th><th>Member Name</th><th>Mobile / Telegram ID</th><th>Join Date</th><th>Plan (₹)</th><th>Payment Status</th><th>Payment Date</th><th>Next Due Date</th><th>Notes</th><th>Actions</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="note">Sharing: click <strong>Copy Shareable Link</strong>. The link encodes the current table data in the URL so anyone you send it to can open and view the same table.</div>
+</div>
+
+<div style="height:24px"></div>
+<div style="text-align:center;color:#666;font-size:13px">Built for you — customize colors, branding, or export as a hosted page.</div>
+
+  </div><script>
+// Initial demo data (from your message)
+const initial = [
+  {name:'Rahul Sharma', id:'@rahul123', join:'2025-09-01', plan:500, status:'Paid', paymentDate:'2025-09-01', nextDue:'2025-10-01', notes:'–'},
+  {name:'Aman Verma', id:'@aman_v', join:'2025-09-05', plan:500, status:'Not Paid', paymentDate:'', nextDue:'2025-10-05', notes:'Reminder Sent'}
+];
+
+const STORAGE_KEY = 'membership_table_v1';
+
+function saveToStorage(arr){localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));}
+function loadFromStorage(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || null;}catch(e){return null}}
+
+function renderTable(data){const tbody=document.querySelector('#membersTable tbody'); tbody.innerHTML=''; data.forEach((m,i)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML = `<td>${i+1}</td>
+    <td>${escapeHtml(m.name)}</td>
+    <td>${escapeHtml(m.id)}</td>
+    <td>${m.join||''}</td>
+    <td>${m.plan||''}</td>
+    <td>${m.status==='Paid'?'<span class="badge-paid">✅ Paid</span>':'<span class="badge-unpaid">❌ Not Paid</span>'}</td>
+    <td>${m.paymentDate||''}</td>
+    <td>${m.nextDue||''}</td>
+    <td>${escapeHtml(m.notes||'')}</td>
+    <td>
+      <button class="small" onclick="edit(${i})">Edit</button>
+      <button class="small" onclick="togglePay(${i})">Toggle Pay</button>
+      <button class="small" onclick="remove(${i})">Delete</button>
+    </td>`;
+  tbody.appendChild(tr);
+});}
+
+function escapeHtml(s){if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));}
+
+function loadOrInit(){const stored = loadFromStorage(); if(stored && Array.isArray(stored)) return stored; saveToStorage(initial); return initial.slice();}
+
+let members = loadOrInit(); renderTable(members);
+
+// Form actions
+const nameInput=document.getElementById('name');
+const idInput=document.getElementById('id');
+const joinInput=document.getElementById('join');
+const planInput=document.getElementById('plan');
+const statusInput=document.getElementById('status');
+const paymentDateInput=document.getElementById('paymentDate');
+const nextDueInput=document.getElementById('nextDue');
+
+let editIndex = -1;
+
+document.getElementById('addBtn').addEventListener('click',()=>{
+  const obj = {name:nameInput.value.trim(), id:idInput.value.trim(), join:joinInput.value, plan: Number(planInput.value)||0, status: statusInput.value, paymentDate: paymentDateInput.value, nextDue: nextDueInput.value, notes:''};
+  if(!obj.name){alert('Enter member name'); return}
+  if(editIndex>=0){ members[editIndex]=Object.assign({}, members[editIndex], obj); editIndex=-1; } else { members.push(obj); }
+  saveToStorage(members); renderTable(members); clearForm();});
+
+function clearForm(){nameInput.value=''; idInput.value=''; joinInput.value=''; planInput.value='500'; statusInput.value='Not Paid'; paymentDateInput.value=''; nextDueInput.value=''; editIndex=-1}
+document.getElementById('clearBtn').addEventListener('click', clearForm);
+
+function edit(i){ const m = members[i]; nameInput.value=m.name; idInput.value=m.id; joinInput.value=m.join||''; planInput.value=m.plan||500; statusInput.value=m.status||'Not Paid'; paymentDateInput.value=m.paymentDate||''; nextDueInput.value=m.nextDue||''; editIndex=i; window.scrollTo({top:0,behavior:'smooth'});} 
+
+function togglePay(i){ members[i].status = members[i].status==='Paid'?'Not Paid':'Paid'; if(members[i].status==='Paid' && !members[i].paymentDate){ members[i].paymentDate = (new Date()).toISOString().slice(0,10);} saveToStorage(members); renderTable(members);} 
+
+function remove(i){ if(!confirm('Delete this member?')) return; members.splice(i,1); saveToStorage(members); renderTable(members);} 
+
+// Export CSV
+function toCSV(arr){ const hdr = ['Sr. No.','Member Name','Mobile / Telegram ID','Join Date','Plan (₹)','Payment Status','Payment Date','Next Due Date','Notes'];
+  const rows = arr.map((m,i)=>[i+1,m.name,m.id,m.join||'',m.plan||'',m.status,m.paymentDate||'',m.nextDue||'',m.notes||'']);
+  const csv = [hdr, ...rows].map(r=>r.map(cell=>`"${String(cell||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  return csv;
+}
+
+document.getElementById('exportCsv').addEventListener('click', ()=>{
+  const csv = toCSV(members); const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='members.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+
+// Shareable link (encode data into URL hash base64)
+function makeShareableLink(arr){ const json = JSON.stringify(arr); const b = btoa(unescape(encodeURIComponent(json))); return location.origin + location.pathname + '#data=' + b; }
+
+document.getElementById('copyLink').addEventListener('click', async ()=>{
+  const link = makeShareableLink(members);
+  try{ await navigator.clipboard.writeText(link); alert('Link copied to clipboard!'); }catch(e){ prompt('Copy this link:', link); }
+});
+
+document.getElementById('loadLink').addEventListener('click', ()=>{
+  const hash = location.hash || '';
+  const found = hash.match(/data=([^&]+)/);
+  if(!found){ alert('No data in current URL. To load from a link, open the link you were given or paste it in the address bar.'); return }
+  try{ const dec = decodeURIComponent(escape(atob(found[1]))); const arr = JSON.parse(dec); if(Array.isArray(arr)){ members = arr; saveToStorage(members); renderTable(members); alert('Loaded data from link.'); } else alert('Invalid data.'); }catch(e){ alert('Failed to parse data from link.'); }
+});
+
+// On page load: if URL has data, load it (viewer-friendly)
+(function(){ const hash = location.hash || ''; const found = hash.match(/data=([^&]+)/);
+  if(found){ try{ const dec = decodeURIComponent(escape(atob(found[1]))); const arr = JSON.parse(dec); if(Array.isArray(arr)){ members = arr; renderTable(members); saveToStorage(members); } }catch(e){ console.warn('Failed to load data from link'); } }
+})();
+
+// Reset to example
+document.getElementById('reset').addEventListener('click', ()=>{ if(!confirm('Replace table with example data?')) return; members = initial.slice(); saveToStorage(members); renderTable(members); });
+
+</script></body>
+</html>
